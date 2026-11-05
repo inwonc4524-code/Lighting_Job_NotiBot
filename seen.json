@@ -27,5 +27,12 @@
   }
  },
  "last_run_day": "2026-11-05",
- "filter_version": 2
+ "filter_version": 2,
+ "known_sites": [
+  "게임잡",
+  "사람인",
+  "잡코리아",
+  "CGLink",
+  "CGLink 외주"
+ ]
 }
