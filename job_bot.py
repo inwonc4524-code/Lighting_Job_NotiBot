@@ -35,10 +35,7 @@ SITES = [
               "condition[menucode]": "", "condition[tabcode]": "1", "direct": "0", "pagesize": "40", "tabcode": "1"},
      "headers": {"X-Requested-With": "XMLHttpRequest",
                  "Referer": "https://www.gamejob.co.kr/Recruit/joblist?menucode=searchtot"}},
-    # CGLink 게시판은 게시판 검색(제목)으로 확인
-    #  cg_site: CG 전문 사이트라서 'CG/게임 관련 단어' 조건 없이 라이팅만 있으면 인정
-    {"name": "CGLink", "url": "https://cglink.com/index.php?mid=jobsRecruit&search_target=title&search_keyword={q}",
-     "link_contains": "document_srl=", "cg_site": True},
+    # CGLink는 GitHub 서버 접속을 막아서 제외함
     {"name": "CGLink 외주", "url": "https://cglink.com/index.php?mid=jobsOffer&search_target=title&search_keyword={q}",
      "link_contains": "document_srl=", "cg_site": True},
     # CGLand 구인 게시판 주소는 확인 후 아래에 추가합니다.
@@ -220,8 +217,6 @@ def main():
             title = (soup.title.get_text(strip=True) if soup.title else "제목없음")[:40]
             hrefs = [a["href"][:60] for a in soup.find_all("a", href=True)][:4]
             status += f" (페이지 '{title}', {len(html)}자, 링크예: {hrefs})"
-            if len(html) < 5000:
-                print("  [받은 내용]", " ".join(html.split())[:1600])
         print(status)
         report_lines.append(("⚠️ " if errors or links == 0 else "✅ ") + status)
 
