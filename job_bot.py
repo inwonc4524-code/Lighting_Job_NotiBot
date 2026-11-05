@@ -220,6 +220,8 @@ def main():
             title = (soup.title.get_text(strip=True) if soup.title else "제목없음")[:40]
             hrefs = [a["href"][:60] for a in soup.find_all("a", href=True)][:4]
             status += f" (페이지 '{title}', {len(html)}자, 링크예: {hrefs})"
+            if len(html) < 5000:
+                print("  [받은 내용]", " ".join(html.split())[:1600])
         print(status)
         report_lines.append(("⚠️ " if errors or links == 0 else "✅ ") + status)
 
