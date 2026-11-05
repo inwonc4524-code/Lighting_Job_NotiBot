@@ -36,8 +36,6 @@ SITES = [
      "headers": {"X-Requested-With": "XMLHttpRequest",
                  "Referer": "https://www.gamejob.co.kr/Recruit/joblist?menucode=searchtot"}},
     # CGLink는 GitHub 서버 접속을 막아서 제외함
-    {"name": "CGLink 외주", "url": "https://cglink.com/index.php?mid=jobsOffer&search_target=title&search_keyword={q}",
-     "link_contains": "document_srl=", "cg_site": True},
     # CGLand 구인 게시판 주소는 확인 후 아래에 추가합니다.
     # {"name": "CGLand", "url": "여기에_구인게시판_주소"},
 ]
