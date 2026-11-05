@@ -36,8 +36,8 @@ SITES = [
      "headers": {"X-Requested-With": "XMLHttpRequest",
                  "Referer": "https://www.gamejob.co.kr/Recruit/joblist?menucode=searchtot"}},
     # CGLink 게시판은 최신 글 목록을 그대로 확인 (검색어 없이)
-    {"name": "CGLink", "url": "https://cglink.com/jobsRecruit", "link_contains": "/jobsRecruit/"},
-    {"name": "CGLink 외주", "url": "https://cglink.com/jobsOffer", "link_contains": "/jobsOffer/"},
+    {"name": "CGLink", "url": "https://cglink.com/jobsRecruit", "link_contains": "jobsRecruit"},
+    {"name": "CGLink 외주", "url": "https://cglink.com/jobsOffer", "link_contains": "jobsOffer"},
     # CGLand 구인 게시판 주소는 확인 후 아래에 추가합니다.
     # {"name": "CGLand", "url": "여기에_구인게시판_주소"},
 ]
@@ -45,14 +45,36 @@ SITES = [
 # ─────────────────────────────────────────────
 # 3) 공고 제목 필터
 # ─────────────────────────────────────────────
-# 제목에 이 단어가 있어야 알림
-MATCH = re.compile(r"라이팅|라이트닝|lighting|lighter|라이터\s*(아티스트|TD)", re.I)
-# '글쓰기(writing)' 쪽 라이팅은 제외
+# 필터 규칙을 바꾸면 숫자를 올립니다 → 기록을 새로 시작하고 현재 공고 목록을 다시 보내줌
+FILTER_VERSION = 2
+
+# 제목에 이 단어가 있어야 함
+KEYWORD = re.compile(r"라이팅|라이트닝|lighting", re.I)
+# 그리고 CG/게임/영상 아트 관련 단어도 함께 있어야 함 (조명회사·글쓰기 공고 제외용)
+ART_CONTEXT = re.compile(
+    r"아티스트|artist|\bTD\b|3D|CG|VFX|게임|렌더|랜더|합성|룩뎁|look\s*dev|시네마|언리얼|unreal|유니티|unity|"
+    r"배경|영상|애니|이펙트|환경|environment|인게임|컴포지|\bcomp|씬|샷|shot|모델링", re.I)
+# 이런 단어가 있으면 제외
 EXCLUDE = re.compile(
     r"카피\s*라이팅|카피라이터|UX\s*라이팅|UX\s*라이터|테크니컬\s*라이팅|콘텐츠\s*라이팅|컨텐츠\s*라이팅|"
-    r"언더\s*라이팅|언더라이터|underwrit|블로그|글쓰기|copy\s*writ|ux\s*writ|technical\s*writ|마케팅\s*라이팅|세일즈\s*라이팅|조명\s*설치|전기",
-    re.I,
-)
+    r"언더\s*라이팅|언더라이터|underwrit|블로그|글쓰기|에세이|논술|copy\s*writ|ux\s*writ|technical\s*writ|"
+    r"마케팅\s*라이팅|세일즈\s*라이팅|조명\s*설치|물류|영업", re.I)
+# '디에이치라이팅', '라이팅큐브' 처럼 회사 이름에 붙은 라이팅은 무시 (단, '배경라이팅'·'라이팅팀' 등은 인정)
+_GLUED_OK_PRE = ("배경", "캐릭터", "인게임", "시네마", "씬", "샷", "게임", "3D", "영상")
+_GLUED_OK_SUF = ("아티스트", "팀", "파트", "담당", "TD", "실", "직")
+
+
+def _strip_company_names(t: str) -> str:
+    def rep(m):
+        w = m.group(0)
+        pre, _, suf = w.partition("라이팅")
+        if pre and not pre.endswith(_GLUED_OK_PRE):
+            return " "
+        if suf and not suf.startswith(_GLUED_OK_SUF):
+            return " "
+        return w
+    return re.sub(r"[가-힣A-Za-z0-9]*라이팅[가-힣0-9]*", rep, t)
+
 
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "").strip()
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seen.json")
@@ -78,7 +100,8 @@ def normalize_url(url: str) -> str:
 
 
 def is_lighting_title(title: str) -> bool:
-    return bool(MATCH.search(title)) and not EXCLUDE.search(title)
+    t = _strip_company_names(title)
+    return bool(KEYWORD.search(t)) and bool(ART_CONTEXT.search(t)) and not EXCLUDE.search(title)
 
 
 def extract_jobs(html: str, base_url: str, link_contains: str = None):
@@ -150,9 +173,9 @@ def notify(title: str, message: str, click: str = None, tags=None, priority: int
 
 def main():
     state = load_state()
-    first_run = state is None
+    first_run = state is None or state.get("filter_version") != FILTER_VERSION
     if first_run:
-        state = {"seen": {}, "last_run_day": ""}
+        state = {"seen": {}, "last_run_day": "", "filter_version": FILTER_VERSION}
 
     seen = state["seen"]
     new_jobs = []
@@ -169,6 +192,7 @@ def main():
         found = {}
         errors = []
         links = 0
+        html = ""
         for url, data in requests_to_make:
             try:
                 html = fetch(url, method, data, site.get("headers"))
@@ -182,6 +206,12 @@ def main():
         status = f"{site['name']}: 링크 {links}개 읽음, 라이팅 공고 {len(found)}개"
         if errors:
             status += f" (오류: {errors[0]})"
+        elif links == 0 and html:
+            # 문제 파악용: 받은 페이지 정보
+            soup = BeautifulSoup(html, "html.parser")
+            title = (soup.title.get_text(strip=True) if soup.title else "제목없음")[:40]
+            hrefs = [a["href"][:60] for a in soup.find_all("a", href=True)][:4]
+            status += f" (페이지 '{title}', {len(html)}자, 링크예: {hrefs})"
         print(status)
         report_lines.append(("⚠️ " if errors or links == 0 else "✅ ") + status)
 
