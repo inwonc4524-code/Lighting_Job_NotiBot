@@ -41,3 +41,17 @@ jobs:
           git config user.email "job-bot@users.noreply.github.com"
           git add seen.json
           git diff --cached --quiet || (git commit -m "기록 업데이트" && git push)
+
+      - name: 자동 실행 유지
+        # 50일 넘게 기록이 없으면 작은 신호 파일을 남겨서
+        # GitHub이 60일 규칙으로 자동 실행을 끄지 않게 함
+        run: |
+          last=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          days=$(( (now - last) / 86400 ))
+          echo "마지막 기록 후 ${days}일 지남"
+          if [ "$days" -ge 50 ]; then
+            date -u +"%Y-%m-%d %H:%M UTC" > keepalive.txt
+            git add keepalive.txt
+            git commit -m "자동 실행 유지" && git push
+          fi
